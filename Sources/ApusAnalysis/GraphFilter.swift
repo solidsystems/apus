@@ -66,7 +66,7 @@ public enum GraphFilter {
     }
 
     /// Progressively simplify a snapshot to fit within maxNodes.
-    /// Strategy: 1) Remove members (keep types/targets), 2) Keep only types, 3) Keep only targets.
+    /// Strategy: remove members first, then keep only types, then truncate by connectivity.
     public static func simplify(_ snapshot: GraphSnapshot, maxNodes: Int) -> GraphSnapshot {
         if snapshot.allNodes.count <= maxNodes {
             return snapshot
@@ -77,31 +77,44 @@ public enum GraphFilter {
             .method, .property, .variable, .constructor, .subscript_, .operator_,
             .function, .typeAlias, .associatedType
         ]
-        let level1Nodes = snapshot.allNodes.filter { !memberKinds.contains($0.kind) }
+        var candidates = snapshot.allNodes.filter { !memberKinds.contains($0.kind) }
 
-        if level1Nodes.count <= maxNodes {
-            let nodeIDs = Set(level1Nodes.map(\.id))
-            let edges = snapshot.allEdges.filter { nodeIDs.contains($0.sourceID) && nodeIDs.contains($0.targetID) }
-            return GraphSnapshot(nodes: level1Nodes, edges: edges)
+        if candidates.count <= maxNodes {
+            return buildSnapshot(nodes: candidates, allEdges: snapshot.allEdges)
         }
 
         // Level 2: Keep only types and targets
         let typeKinds: Set<NodeKind> = [
             .class_, .struct_, .enum_, .protocol_, .actor, .extension_, .target, .module
         ]
-        let level2Nodes = snapshot.allNodes.filter { typeKinds.contains($0.kind) }
+        candidates = snapshot.allNodes.filter { typeKinds.contains($0.kind) }
 
-        if level2Nodes.count <= maxNodes {
-            let nodeIDs = Set(level2Nodes.map(\.id))
-            let edges = snapshot.allEdges.filter { nodeIDs.contains($0.sourceID) && nodeIDs.contains($0.targetID) }
-            return GraphSnapshot(nodes: level2Nodes, edges: edges)
+        if candidates.count <= maxNodes {
+            return buildSnapshot(nodes: candidates, allEdges: snapshot.allEdges)
         }
 
-        // Level 3: Keep only targets/modules
-        let structuralKinds: Set<NodeKind> = [.target, .module]
-        let level3Nodes = snapshot.allNodes.filter { structuralKinds.contains($0.kind) }
-        let nodeIDs = Set(level3Nodes.map(\.id))
-        let edges = snapshot.allEdges.filter { nodeIDs.contains($0.sourceID) && nodeIDs.contains($0.targetID) }
-        return GraphSnapshot(nodes: level3Nodes, edges: edges)
+        // Level 3: Still too many — keep top N by edge degree (most connected first)
+        return topByDegree(nodes: candidates, allEdges: snapshot.allEdges, maxNodes: maxNodes)
+    }
+
+    /// Build a snapshot from a node subset, keeping only edges between included nodes.
+    private static func buildSnapshot(nodes: [GraphNode], allEdges: [GraphEdge]) -> GraphSnapshot {
+        let nodeIDs = Set(nodes.map(\.id))
+        let edges = allEdges.filter { nodeIDs.contains($0.sourceID) && nodeIDs.contains($0.targetID) }
+        return GraphSnapshot(nodes: nodes, edges: edges)
+    }
+
+    /// Keep the top N most-connected nodes by total edge degree.
+    private static func topByDegree(nodes: [GraphNode], allEdges: [GraphEdge], maxNodes: Int) -> GraphSnapshot {
+        let nodeIDs = Set(nodes.map(\.id))
+        // Count degree only for edges between candidate nodes
+        var degree: [String: Int] = [:]
+        for edge in allEdges where nodeIDs.contains(edge.sourceID) && nodeIDs.contains(edge.targetID) {
+            degree[edge.sourceID, default: 0] += 1
+            degree[edge.targetID, default: 0] += 1
+        }
+        let sorted = nodes.sorted { (degree[$0.id] ?? 0) > (degree[$1.id] ?? 0) }
+        let kept = Array(sorted.prefix(maxNodes))
+        return buildSnapshot(nodes: kept, allEdges: allEdges)
     }
 }

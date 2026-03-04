@@ -255,17 +255,15 @@ struct ExportTests {
         #expect(html.contains("TestProject"))
     }
 
-    @Test("WebExplorerTemplate embeds graph data")
+    @Test("WebExplorerTemplate fetches graph data from API")
     func webExplorerData() {
         let snapshot = makeSnapshot()
         let template = WebExplorerTemplate()
         let html = template.generateHTML(snapshot: snapshot, projectName: "TestProject")
 
-        #expect(html.contains("const graphData ="))
-        #expect(html.contains("elements"))
-        // Verify node names appear in embedded JSON
-        #expect(html.contains("User"))
-        #expect(html.contains("ViewModel"))
+        // Data is fetched from /api/graph, not inlined
+        #expect(html.contains("fetch('/api/graph')"))
+        #expect(html.contains("Loading graph data..."))
     }
 
     @Test("WebExplorerTemplate includes interactive features")
