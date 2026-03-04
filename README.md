@@ -124,6 +124,18 @@ apus explore . --port 9000 --no-browser
 
 The web explorer serves a self-contained Cytoscape.js graph with search, filtering by target/kind, click-to-inspect, multiple layout algorithms, and PNG export.
 
+### Update
+
+```bash
+# From anywhere, if installed from the repo
+apus update
+
+# Or specify the source repo path
+apus update --repo /path/to/apus
+```
+
+Apus will pull the latest source, rebuild the release binary, and replace itself in-place. Requires the source repo to be reachable from the binary's install location (or use `--repo`).
+
 ### Use as an MCP server with Claude Code
 
 Add Apus to your Claude Code MCP configuration (`.claude/settings.json` or project-level):
@@ -152,7 +164,7 @@ apus serve --path /path/to/your/project
 ## Architecture
 
 ```
-ApusCLI ─── apus index / query / analyze / serve / export / explore
+ApusCLI ─── apus index / query / analyze / serve / export / explore / update
   ├── ApusProject ──── SPM, Xcode, XcodeGen, Workspace parsers
   ├── ApusIndexStore ─ C API wrappers for Xcode's libIndexStore.dylib
   ├── ApusSyntax ───── SwiftSyntax-based source file parsing
