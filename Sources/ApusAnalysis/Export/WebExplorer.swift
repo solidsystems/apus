@@ -6,12 +6,8 @@ public struct WebExplorerTemplate: Sendable {
 
     public init() {}
 
-    /// Generate a complete HTML page with embedded graph data.
+    /// Generate a complete HTML page that fetches graph data from /api/graph.
     public func generateHTML(snapshot: GraphSnapshot, projectName: String) -> String {
-        let jsonExporter = JSONExporter(prettyPrint: false, cytoscapeFormat: true)
-        let result = jsonExporter.export(snapshot: snapshot)
-        let graphJSON = result.content
-
         return """
         <!DOCTYPE html>
         <html lang="en">
@@ -76,144 +72,22 @@ public struct WebExplorerTemplate: Sendable {
             <div id="cy"></div>
 
             <script>
-            const graphData = \(graphJSON);
-
             // Register cose-bilkent layout plugin
             if (typeof cytoscapeCoseBilkent !== 'undefined') {
                 cytoscapeCoseBilkent(cytoscape);
             }
 
-            let cy = cytoscape({
-                container: document.getElementById('cy'),
-                elements: graphData.elements,
-                style: [
-                    { selector: 'node', style: {
-                        'label': 'data(label)',
-                        'background-color': 'data(color)',
-                        'shape': 'data(shape)',
-                        'font-size': '10px',
-                        'color': '#ccc',
-                        'text-valign': 'bottom',
-                        'text-margin-y': 5,
-                        'width': 30,
-                        'height': 30,
-                        'border-width': 1,
-                        'border-color': '#555'
-                    }},
-                    { selector: 'edge', style: {
-                        'label': 'data(label)',
-                        'font-size': '8px',
-                        'color': '#666',
-                        'line-color': '#555',
-                        'target-arrow-color': '#555',
-                        'target-arrow-shape': 'triangle',
-                        'curve-style': 'bezier',
-                        'width': 1
-                    }},
-                    { selector: 'node:selected', style: {
-                        'border-color': '#e74c3c',
-                        'border-width': 3
-                    }},
-                    { selector: '.highlighted', style: {
-                        'border-color': '#f39c12',
-                        'border-width': 2,
-                        'line-color': '#f39c12',
-                        'target-arrow-color': '#f39c12',
-                        'width': 2
-                    }},
-                    { selector: '.faded', style: { 'opacity': 0.15 } },
-                    { selector: '.hidden', style: { 'display': 'none' } }
-                ],
-                layout: { name: 'cose-bilkent', animate: false, nodeDimensionsIncludeLabels: true }
-            });
-
-            // Build filter checkboxes
-            const targets = new Set();
-            const kinds = new Set();
-            cy.nodes().forEach(n => {
-                if (n.data('targetName')) targets.add(n.data('targetName'));
-                if (n.data('kind')) kinds.add(n.data('kind'));
-            });
-
-            function buildFilters(containerId, values) {
-                const el = document.getElementById(containerId);
-                [...values].sort().forEach(v => {
-                    const lbl = document.createElement('label');
-                    const cb = document.createElement('input');
-                    cb.type = 'checkbox'; cb.checked = true; cb.value = v;
-                    cb.addEventListener('change', applyFilters);
-                    lbl.appendChild(cb);
-                    lbl.appendChild(document.createTextNode(v));
-                    el.appendChild(lbl);
-                });
-            }
-            buildFilters('target-filters', targets);
-            buildFilters('kind-filters', kinds);
-
-            function applyFilters() {
-                const checkedTargets = new Set([...document.querySelectorAll('#target-filters input:checked')].map(c => c.value));
-                const checkedKinds = new Set([...document.querySelectorAll('#kind-filters input:checked')].map(c => c.value));
-                cy.nodes().forEach(n => {
-                    const t = n.data('targetName') || '';
-                    const k = n.data('kind') || '';
-                    const show = (checkedTargets.size === 0 || !t || checkedTargets.has(t)) && (checkedKinds.size === 0 || !k || checkedKinds.has(k));
-                    show ? n.removeClass('hidden') : n.addClass('hidden');
-                });
-                cy.edges().forEach(e => {
-                    (e.source().hasClass('hidden') || e.target().hasClass('hidden')) ? e.addClass('hidden') : e.removeClass('hidden');
-                });
-                updateStats();
-            }
-
-            // Search
-            document.getElementById('search').addEventListener('input', function() {
-                const q = this.value.toLowerCase();
-                cy.elements().removeClass('faded highlighted');
-                if (!q) return;
-                cy.nodes().forEach(n => {
-                    if ((n.data('label') || '').toLowerCase().includes(q)) {
-                        n.addClass('highlighted');
-                    } else {
-                        n.addClass('faded');
-                    }
-                });
-                cy.edges().forEach(e => {
-                    (e.source().hasClass('faded') && e.target().hasClass('faded')) ? e.addClass('faded') : 0;
-                });
-            });
-
-            // Click to inspect
-            cy.on('tap', 'node', function(evt) {
-                const d = evt.target.data();
-                const info = document.getElementById('info');
-                info.innerHTML = `
-                    <div><span class="label">Name:</span> <span class="value">${d.label || ''}</span></div>
-                    <div><span class="label">Kind:</span> <span class="value">${d.kind || ''}</span></div>
-                    <div><span class="label">Access:</span> <span class="value">${d.accessLevel || 'n/a'}</span></div>
-                    <div><span class="label">Target:</span> <span class="value">${d.targetName || 'n/a'}</span></div>
-                    <div><span class="label">ID:</span> <span class="value" style="word-break:break-all;font-size:10px">${d.id || ''}</span></div>
-                `;
-                // Highlight neighbors
-                cy.elements().removeClass('highlighted faded');
-                const neighborhood = evt.target.neighborhood().add(evt.target);
-                neighborhood.addClass('highlighted');
-                cy.elements().not(neighborhood).addClass('faded');
-            });
-
-            cy.on('tap', function(evt) {
-                if (evt.target === cy) {
-                    cy.elements().removeClass('highlighted faded');
-                    document.getElementById('info').innerHTML = 'Click a node to inspect it.';
-                }
-            });
+            let cy;
 
             function setLayout(name) {
+                if (!cy) return;
                 const opts = { name: name, animate: false };
                 if (name === 'cose-bilkent') opts.nodeDimensionsIncludeLabels = true;
                 cy.layout(opts).run();
             }
 
             function exportPNG() {
+                if (!cy) return;
                 const a = document.createElement('a');
                 a.href = cy.png({ full: true, scale: 2, bg: '#1a1a2e' });
                 a.download = '\(escapeHTML(projectName))-graph.png';
@@ -221,11 +95,146 @@ public struct WebExplorerTemplate: Sendable {
             }
 
             function updateStats() {
+                if (!cy) return;
                 const visible = cy.nodes().not('.hidden');
                 const visEdges = cy.edges().not('.hidden');
                 document.getElementById('stats').textContent = `Showing ${visible.length} nodes, ${visEdges.length} edges`;
             }
-            updateStats();
+
+            // Fetch graph data from API endpoint
+            document.getElementById('info').innerHTML = 'Loading graph data...';
+
+            fetch('/api/graph')
+                .then(r => r.json())
+                .then(graphData => {
+                    cy = cytoscape({
+                        container: document.getElementById('cy'),
+                        elements: graphData.elements,
+                        style: [
+                            { selector: 'node', style: {
+                                'label': 'data(label)',
+                                'background-color': 'data(color)',
+                                'shape': 'data(shape)',
+                                'font-size': '10px',
+                                'color': '#ccc',
+                                'text-valign': 'bottom',
+                                'text-margin-y': 5,
+                                'width': 30,
+                                'height': 30,
+                                'border-width': 1,
+                                'border-color': '#555'
+                            }},
+                            { selector: 'edge', style: {
+                                'label': 'data(label)',
+                                'font-size': '8px',
+                                'color': '#666',
+                                'line-color': '#555',
+                                'target-arrow-color': '#555',
+                                'target-arrow-shape': 'triangle',
+                                'curve-style': 'bezier',
+                                'width': 1
+                            }},
+                            { selector: 'node:selected', style: {
+                                'border-color': '#e74c3c',
+                                'border-width': 3
+                            }},
+                            { selector: '.highlighted', style: {
+                                'border-color': '#f39c12',
+                                'border-width': 2,
+                                'line-color': '#f39c12',
+                                'target-arrow-color': '#f39c12',
+                                'width': 2
+                            }},
+                            { selector: '.faded', style: { 'opacity': 0.15 } },
+                            { selector: '.hidden', style: { 'display': 'none' } }
+                        ],
+                        layout: { name: 'cose-bilkent', animate: false, nodeDimensionsIncludeLabels: true }
+                    });
+
+                    // Build filter checkboxes
+                    const targets = new Set();
+                    const kinds = new Set();
+                    cy.nodes().forEach(n => {
+                        if (n.data('targetName')) targets.add(n.data('targetName'));
+                        if (n.data('kind')) kinds.add(n.data('kind'));
+                    });
+
+                    function buildFilters(containerId, values) {
+                        const el = document.getElementById(containerId);
+                        [...values].sort().forEach(v => {
+                            const lbl = document.createElement('label');
+                            const cb = document.createElement('input');
+                            cb.type = 'checkbox'; cb.checked = true; cb.value = v;
+                            cb.addEventListener('change', applyFilters);
+                            lbl.appendChild(cb);
+                            lbl.appendChild(document.createTextNode(v));
+                            el.appendChild(lbl);
+                        });
+                    }
+                    buildFilters('target-filters', targets);
+                    buildFilters('kind-filters', kinds);
+
+                    function applyFilters() {
+                        const checkedTargets = new Set([...document.querySelectorAll('#target-filters input:checked')].map(c => c.value));
+                        const checkedKinds = new Set([...document.querySelectorAll('#kind-filters input:checked')].map(c => c.value));
+                        cy.nodes().forEach(n => {
+                            const t = n.data('targetName') || '';
+                            const k = n.data('kind') || '';
+                            const show = (checkedTargets.size === 0 || !t || checkedTargets.has(t)) && (checkedKinds.size === 0 || !k || checkedKinds.has(k));
+                            show ? n.removeClass('hidden') : n.addClass('hidden');
+                        });
+                        cy.edges().forEach(e => {
+                            (e.source().hasClass('hidden') || e.target().hasClass('hidden')) ? e.addClass('hidden') : e.removeClass('hidden');
+                        });
+                        updateStats();
+                    }
+
+                    // Search
+                    document.getElementById('search').addEventListener('input', function() {
+                        const q = this.value.toLowerCase();
+                        cy.elements().removeClass('faded highlighted');
+                        if (!q) return;
+                        cy.nodes().forEach(n => {
+                            if ((n.data('label') || '').toLowerCase().includes(q)) {
+                                n.addClass('highlighted');
+                            } else {
+                                n.addClass('faded');
+                            }
+                        });
+                        cy.edges().forEach(e => {
+                            (e.source().hasClass('faded') && e.target().hasClass('faded')) ? e.addClass('faded') : 0;
+                        });
+                    });
+
+                    // Click to inspect
+                    cy.on('tap', 'node', function(evt) {
+                        const d = evt.target.data();
+                        document.getElementById('info').innerHTML = `
+                            <div><span class="label">Name:</span> <span class="value">${d.label || ''}</span></div>
+                            <div><span class="label">Kind:</span> <span class="value">${d.kind || ''}</span></div>
+                            <div><span class="label">Access:</span> <span class="value">${d.accessLevel || 'n/a'}</span></div>
+                            <div><span class="label">Target:</span> <span class="value">${d.targetName || 'n/a'}</span></div>
+                            <div><span class="label">ID:</span> <span class="value" style="word-break:break-all;font-size:10px">${d.id || ''}</span></div>
+                        `;
+                        cy.elements().removeClass('highlighted faded');
+                        const neighborhood = evt.target.neighborhood().add(evt.target);
+                        neighborhood.addClass('highlighted');
+                        cy.elements().not(neighborhood).addClass('faded');
+                    });
+
+                    cy.on('tap', function(evt) {
+                        if (evt.target === cy) {
+                            cy.elements().removeClass('highlighted faded');
+                            document.getElementById('info').innerHTML = 'Click a node to inspect it.';
+                        }
+                    });
+
+                    document.getElementById('info').innerHTML = 'Click a node to inspect it.';
+                    updateStats();
+                })
+                .catch(err => {
+                    document.getElementById('info').innerHTML = `<span style="color:#e74c3c">Failed to load graph: ${err.message}</span>`;
+                });
             </script>
         </body>
         </html>
