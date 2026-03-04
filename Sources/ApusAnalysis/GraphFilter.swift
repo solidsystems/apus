@@ -65,9 +65,18 @@ public enum GraphFilter {
         return result
     }
 
+    /// Names of compiler-synthesized nested types that are noise in visualizations.
+    private static let syntheticTypeNames: Set<String> = ["CodingKeys"]
+
     /// Progressively simplify a snapshot to fit within maxNodes.
     /// Strategy: remove members first, then keep only types, then truncate by connectivity.
     public static func simplify(_ snapshot: GraphSnapshot, maxNodes: Int) -> GraphSnapshot {
+        // Always strip compiler-synthesized boilerplate (e.g. CodingKeys enums)
+        let cleaned = snapshot.allNodes.filter { !syntheticTypeNames.contains($0.name) }
+        let snapshot = cleaned.count < snapshot.allNodes.count
+            ? buildSnapshot(nodes: cleaned, allEdges: snapshot.allEdges)
+            : snapshot
+
         if snapshot.allNodes.count <= maxNodes {
             return snapshot
         }

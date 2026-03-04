@@ -6,6 +6,24 @@ import ApusAnalysis
 import Network
 #endif
 
+/// Ensures a `CheckedContinuation` is resumed exactly once, safely across threads.
+private final class OnceContinuation: @unchecked Sendable {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private let lock = NSLock()
+
+    init(_ continuation: CheckedContinuation<Void, Never>) {
+        self.continuation = continuation
+    }
+
+    func resume() {
+        lock.lock()
+        let cont = continuation
+        continuation = nil
+        lock.unlock()
+        cont?.resume()
+    }
+}
+
 struct ExploreCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "explore",
@@ -90,32 +108,38 @@ struct ExploreCommand: AsyncParsableCommand {
         let openBrowser = !self.noBrowser
         let serverPort = self.port
 
-        listener.stateUpdateHandler = { state in
-            switch state {
-            case .ready:
-                if openBrowser {
-                    let process = Process()
-                    process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-                    process.arguments = ["http://localhost:\(serverPort)"]
-                    try? process.run()
-                }
-            case .failed(let error):
-                FileHandle.standardError.write(Data("Server error: \(error)\n".utf8))
-            default:
-                break
-            }
-        }
-
-        listener.start(queue: .global())
-
-        // Wait for SIGINT using async-compatible suspension
+        // Wait for SIGINT or listener failure
         signal(SIGINT, SIG_IGN)
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let awaiter = OnceContinuation(continuation)
+
+            listener.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    if openBrowser {
+                        let process = Process()
+                        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+                        process.arguments = ["http://localhost:\(serverPort)"]
+                        try? process.run()
+                    }
+                case .failed(let error):
+                    FileHandle.standardError.write(Data("Server error: \(error)\n".utf8))
+                    awaiter.resume()
+                case .cancelled:
+                    awaiter.resume()
+                default:
+                    break
+                }
+            }
+
+            listener.start(queue: .global())
+
             let sigintSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: .global())
             sigintSource.setEventHandler {
                 print("\nShutting down...")
                 listener.cancel()
-                continuation.resume()
+                sigintSource.cancel()
+                awaiter.resume()
             }
             sigintSource.resume()
         }
