@@ -61,6 +61,9 @@ struct ExploreCommand: AsyncParsableCommand {
         print("  Press Ctrl+C to stop")
 
         #if canImport(Network)
+        // Ignore SIGPIPE so broken client connections don't kill the process
+        signal(SIGPIPE, SIG_IGN)
+
         // Start HTTP server using Network.framework
         let listener = try NWListener(using: .tcp, on: NWEndpoint.Port(integerLiteral: UInt16(port)))
 
@@ -69,14 +72,16 @@ struct ExploreCommand: AsyncParsableCommand {
             Self.handleConnection(connection, htmlData: htmlData, jsonData: jsonData)
         }
 
+        let openBrowser = !self.noBrowser
+        let serverPort = self.port
+
         listener.stateUpdateHandler = { state in
             switch state {
             case .ready:
-                if !self.noBrowser {
-                    // Open browser
+                if openBrowser {
                     let process = Process()
                     process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-                    process.arguments = ["http://localhost:\(self.port)"]
+                    process.arguments = ["http://localhost:\(serverPort)"]
                     try? process.run()
                 }
             case .failed(let error):
@@ -88,18 +93,17 @@ struct ExploreCommand: AsyncParsableCommand {
 
         listener.start(queue: .global())
 
-        // Keep running until SIGINT
-        let sigintSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
-        signal(SIGINT, SIG_IGN) // Ignore default handler
-        sigintSource.setEventHandler {
-            print("\nShutting down...")
-            listener.cancel()
-            Foundation.exit(0)
+        // Wait for SIGINT using async-compatible suspension
+        signal(SIGINT, SIG_IGN)
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let sigintSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: .global())
+            sigintSource.setEventHandler {
+                print("\nShutting down...")
+                listener.cancel()
+                continuation.resume()
+            }
+            sigintSource.resume()
         }
-        sigintSource.resume()
-
-        // Block forever
-        dispatchMain()
         #else
         print("Network.framework not available. Cannot start HTTP server.")
         throw ExitCode.failure
