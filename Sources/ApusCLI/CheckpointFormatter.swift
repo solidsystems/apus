@@ -58,18 +58,19 @@ enum CheckpointFormatter {
         }
 
         var lines: [String] = []
-        lines.append(String(format: "%-4s  %-20s  %-14s  %6s  %6s  %5s", "ID", "Date", "Name", "Nodes", "Edges", "Files"))
+        lines.append("ID".padding(toLength: 4, withPad: " ", startingAt: 0) + "  " + "Date".padding(toLength: 20, withPad: " ", startingAt: 0) + "  " + "Name".padding(toLength: 14, withPad: " ", startingAt: 0) + "  " + "Nodes".leftPad(6) + "  " + "Edges".leftPad(6) + "  " + "Files".leftPad(5))
         lines.append(String(repeating: "-", count: 65))
 
         for cp in checkpoints {
             let label = cp.name ?? "(auto)"
             let date = formatDate(cp.createdAt)
+            let idStr = String(cp.id ?? 0)
             if let metrics = try? cp.metrics() {
-                lines.append(String(format: "%-4d  %-20s  %-14s  %6d  %6d  %5d",
-                    cp.id ?? 0, date, label, metrics.totalNodes, metrics.totalEdges, metrics.fileCount))
+                let row = "\(idStr.padding(toLength: 4, withPad: " ", startingAt: 0))  \(date.padding(toLength: 20, withPad: " ", startingAt: 0))  \(label.padding(toLength: 14, withPad: " ", startingAt: 0))  \(String(metrics.totalNodes).leftPad(6))  \(String(metrics.totalEdges).leftPad(6))  \(String(metrics.fileCount).leftPad(5))"
+                lines.append(row)
             } else {
-                lines.append(String(format: "%-4d  %-20s  %-14s  %6s  %6s  %5s",
-                    cp.id ?? 0, date, label, "?", "?", "?"))
+                let row = "\(idStr.padding(toLength: 4, withPad: " ", startingAt: 0))  \(date.padding(toLength: 20, withPad: " ", startingAt: 0))  \(label.padding(toLength: 14, withPad: " ", startingAt: 0))       ?       ?      ?"
+                lines.append(row)
             }
         }
 
@@ -107,5 +108,12 @@ enum CheckpointFormatter {
             return display.string(from: date)
         }
         return String(iso.prefix(16))
+    }
+}
+
+private extension String {
+    func leftPad(_ width: Int) -> String {
+        if count >= width { return self }
+        return String(repeating: " ", count: width - count) + self
     }
 }

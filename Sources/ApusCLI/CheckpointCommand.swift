@@ -6,8 +6,15 @@ struct CheckpointCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "checkpoint",
         abstract: "Compare graph metrics against previous checkpoints",
-        subcommands: [ListCheckpoints.self, SaveCheckpoint.self],
-        defaultSubcommand: nil
+        subcommands: [CompareCheckpoint.self, ListCheckpoints.self, SaveCheckpoint.self],
+        defaultSubcommand: CompareCheckpoint.self
+    )
+}
+
+struct CompareCheckpoint: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "diff",
+        abstract: "Compare current state vs last checkpoint (default)"
     )
 
     @Argument(help: "Path to the project root")
