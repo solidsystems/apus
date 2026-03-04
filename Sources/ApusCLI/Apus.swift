@@ -11,7 +11,7 @@ struct Apus: AsyncParsableCommand {
         commandName: "apus",
         abstract: "Swift-native code intelligence powered by Index Store and SwiftSyntax",
         version: "0.1.0",
-        subcommands: [IndexCommand.self, QueryCommand.self, ServeCommand.self, AnalyzeCommand.self, ExportCommand.self, ExploreCommand.self, UpdateCommand.self]
+        subcommands: [IndexCommand.self, QueryCommand.self, ServeCommand.self, AnalyzeCommand.self, ExportCommand.self, ExploreCommand.self, UpdateCommand.self, CheckpointCommand.self]
     )
 }
 
@@ -51,6 +51,26 @@ struct IndexCommand: AsyncParsableCommand {
         print("  Total: \(result.totalNodes) nodes, \(result.totalEdges) edges")
         print("  Database: \(result.databasePath)")
         print("  Duration: \(String(format: "%.2f", result.duration))s")
+
+        // Auto-checkpoint: save metrics and show diff vs previous
+        do {
+            let resolvedPath = URL(
+                fileURLWithPath: path,
+                relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            ).standardized.path
+            let persistence = GraphPersistence(projectPath: resolvedPath)
+            let storage = try persistence.openStorage()
+            let previous = try CheckpointStore.latest(from: storage)
+            let metrics = try CheckpointStore.captureMetrics(from: storage)
+            try CheckpointStore.save(metrics: metrics, in: storage)
+
+            if let previous, let previousMetrics = try? previous.metrics() {
+                let diff = CheckpointDiff.compute(old: previousMetrics, new: metrics)
+                print(CheckpointFormatter.formatAutoSummary(diff: diff))
+            }
+        } catch {
+            // Checkpoint failures should never block indexing
+        }
     }
 }
 

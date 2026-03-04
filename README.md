@@ -124,6 +124,21 @@ apus explore . --port 9000 --no-browser
 
 The web explorer serves a self-contained Cytoscape.js graph with search, filtering by target/kind, click-to-inspect, multiple layout algorithms, and PNG export.
 
+### Track changes with checkpoints
+
+```bash
+# Compare current state vs last checkpoint
+apus checkpoint .
+
+# Save a named checkpoint
+apus checkpoint save . --name "before-refactor"
+
+# List all checkpoints
+apus checkpoint list .
+```
+
+Checkpoints are also saved automatically after every `apus index` run, with a summary of what changed since the previous index.
+
 ### Update
 
 ```bash
@@ -164,7 +179,7 @@ apus serve --path /path/to/your/project
 ## Architecture
 
 ```
-ApusCLI ─── apus index / query / analyze / serve / export / explore / update
+ApusCLI ─── apus index / query / analyze / serve / export / explore / checkpoint / update
   ├── ApusProject ──── SPM, Xcode, XcodeGen, Workspace parsers
   ├── ApusIndexStore ─ C API wrappers for Xcode's libIndexStore.dylib
   ├── ApusSyntax ───── SwiftSyntax-based source file parsing

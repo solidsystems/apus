@@ -84,6 +84,17 @@ public struct SQLiteStorage: Sendable {
             try db.create(index: "idx_edges_target", on: "edges", columns: ["target_id"])
         }
 
+        // v3: Add checkpoints table for tracking graph metrics over time.
+        migrator.registerMigration("v3") { db in
+            try db.create(table: "checkpoints") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("name", .text)
+                t.column("created_at", .text).notNull()
+                t.column("metrics_json", .text).notNull()
+            }
+            try db.create(index: "idx_checkpoints_created_at", on: "checkpoints", columns: ["created_at"])
+        }
+
         return migrator
     }
 }
