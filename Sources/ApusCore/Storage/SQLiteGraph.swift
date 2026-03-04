@@ -160,15 +160,29 @@ public final class SQLiteGraph: KnowledgeGraph, Sendable {
 
     public func search(query: String) async throws -> [GraphNode] {
         try await storage.dbPool.write { db in
+            // Try FTS5 first for full-token and prefix matches
             let pattern = FTS5Pattern(matchingAnyTokenIn: query)
-            guard let pattern else { return [] }
+            if let pattern {
+                let sql = """
+                    SELECT nodes.*
+                    FROM nodes
+                    JOIN nodes_fts ON nodes_fts.rowid = nodes.rowid
+                    WHERE nodes_fts MATCH ?
+                    """
+                let ftsResults = try NodeRecord.fetchAll(db, sql: sql, arguments: [pattern])
+                    .map { $0.toGraphNode() }
+                if !ftsResults.isEmpty { return ftsResults }
+            }
+
+            // Fall back to case-insensitive substring match on name/qualified_name.
+            // FTS5's default tokenizer doesn't split camelCase, so searches like
+            // "Multiplayer" won't match "MultiplayerLobby" via FTS alone.
+            let likePattern = "%\(query)%"
             let sql = """
-                SELECT nodes.*
-                FROM nodes
-                JOIN nodes_fts ON nodes_fts.rowid = nodes.rowid
-                WHERE nodes_fts MATCH ?
+                SELECT * FROM nodes
+                WHERE name LIKE ? OR qualified_name LIKE ?
                 """
-            return try NodeRecord.fetchAll(db, sql: sql, arguments: [pattern])
+            return try NodeRecord.fetchAll(db, sql: sql, arguments: [likePattern, likePattern])
                 .map { $0.toGraphNode() }
         }
     }
