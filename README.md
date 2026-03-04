@@ -98,6 +98,32 @@ apus analyze . --output report.md
 
 Available sections: `overview`, `architecture`, `typesystem`, `api`, `dependencies`, `hotspots`, `patterns`.
 
+### Export & Visualize
+
+```bash
+# Export as Graphviz DOT
+apus export . --format dot
+apus export . --format dot --output graph.dot
+dot -Tsvg graph.dot -o graph.svg  # requires graphviz
+
+# Export as Mermaid diagram
+apus export . --format mermaid
+apus export . --format mermaid --max-nodes 50
+
+# Export as JSON (for D3.js, Cytoscape.js, etc.)
+apus export . --format json
+apus export . --format json --cytoscape
+
+# Filter exports by target or node kind
+apus export . --format dot --target ApusCore --exclude-kind file
+
+# Launch interactive web explorer
+apus explore .
+apus explore . --port 9000 --no-browser
+```
+
+The web explorer serves a self-contained Cytoscape.js graph with search, filtering by target/kind, click-to-inspect, multiple layout algorithms, and PNG export.
+
 ### Use as an MCP server with Claude Code
 
 Add Apus to your Claude Code MCP configuration (`.claude/settings.json` or project-level):
@@ -126,11 +152,11 @@ apus serve --path /path/to/your/project
 ## Architecture
 
 ```
-ApusCLI ─── apus index / query / analyze / serve
+ApusCLI ─── apus index / query / analyze / serve / export / explore
   ├── ApusProject ──── SPM, Xcode, XcodeGen, Workspace parsers
   ├── ApusIndexStore ─ C API wrappers for Xcode's libIndexStore.dylib
   ├── ApusSyntax ───── SwiftSyntax-based source file parsing
-  ├── ApusAnalysis ─── Codebase analysis and report generation
+  ├── ApusAnalysis ─── Codebase analysis, graph export (DOT/Mermaid/JSON), web explorer
   ├── ApusMCP ──────── MCP server with tool handlers
   └── ApusCore ─────── GraphNode, GraphEdge, KnowledgeGraph protocol,
                         SQLite persistence (GRDB + FTS5), HybridGraph
