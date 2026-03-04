@@ -19,8 +19,8 @@ public struct WebExplorerTemplate: Sendable {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>\(escapeHTML(projectName)) — Apus Graph Explorer</title>
-            <script src="https://unpkg.com/cytoscape@3/dist/cytoscape.min.js"></script>
-            <script src="https://unpkg.com/cytoscape-cose-bilkent@4/cytoscape-cose-bilkent.js"></script>
+            <script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+            <script src="https://unpkg.com/cytoscape-cose-bilkent@4.1.0/cytoscape-cose-bilkent.js"></script>
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
                 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; height: 100vh; background: #1a1a2e; color: #e0e0e0; }
@@ -76,7 +76,12 @@ public struct WebExplorerTemplate: Sendable {
             <script>
             const graphData = \(graphJSON);
 
-            const cy = cytoscape({
+            // Register cose-bilkent layout plugin
+            if (typeof cytoscapeCoseBilkent !== 'undefined') {
+                cytoscapeCoseBilkent(cytoscape);
+            }
+
+            let cy = cytoscape({
                 container: document.getElementById('cy'),
                 elements: graphData.elements,
                 style: [

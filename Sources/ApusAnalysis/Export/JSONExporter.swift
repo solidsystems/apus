@@ -84,7 +84,11 @@ public struct JSONExporter: GraphExporting {
             ))
         }
 
-        let cyEdges = snapshot.allEdges.map { edge -> CytoscapeElement in
+        // Filter out edges with missing source/target nodes (dangling references)
+        let nodeIDs = Set(snapshot.allNodes.map(\.id))
+        let validEdges = snapshot.allEdges.filter { nodeIDs.contains($0.sourceID) && nodeIDs.contains($0.targetID) }
+
+        let cyEdges = validEdges.map { edge -> CytoscapeElement in
             CytoscapeElement(data: CytoscapeData(
                 id: "\(edge.sourceID)-\(edge.kind.rawValue)-\(edge.targetID)",
                 label: edge.kind.rawValue,
