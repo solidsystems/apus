@@ -54,12 +54,7 @@ struct IndexCommand: AsyncParsableCommand {
 
         // Auto-checkpoint: save metrics and show diff vs previous
         do {
-            let resolvedPath = URL(
-                fileURLWithPath: path,
-                relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            ).standardized.path
-            let persistence = GraphPersistence(projectPath: resolvedPath)
-            let storage = try persistence.openStorage()
+            let storage = try SQLiteStorage(path: result.databasePath)
             let previous = try CheckpointStore.latest(from: storage)
             let metrics = try CheckpointStore.captureMetrics(from: storage)
             try CheckpointStore.save(metrics: metrics, in: storage)
@@ -93,11 +88,7 @@ struct QueryCommand: AsyncParsableCommand {
     var json: Bool = false
 
     func run() async throws {
-        let resolvedPath = URL(
-            fileURLWithPath: path,
-            relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        ).standardized.path
-
+        let resolvedPath = resolveProjectPath(path)
         let persistence = GraphPersistence(projectPath: resolvedPath)
         guard FileManager.default.fileExists(atPath: persistence.databasePath) else {
             print("No index found. Run `apus index \(path)` first.")
@@ -154,11 +145,7 @@ struct ServeCommand: AsyncParsableCommand {
     var path: String = "."
 
     func run() async throws {
-        let resolvedPath = URL(
-            fileURLWithPath: path,
-            relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        ).standardized.path
-
+        let resolvedPath = resolveProjectPath(path)
         let persistence = GraphPersistence(projectPath: resolvedPath)
         guard FileManager.default.fileExists(atPath: persistence.databasePath) else {
             // Write to stderr so it doesn't interfere with MCP stdio protocol
@@ -198,11 +185,7 @@ struct AnalyzeCommand: AsyncParsableCommand {
     var sections: String?
 
     func run() async throws {
-        let resolvedPath = URL(
-            fileURLWithPath: path,
-            relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        ).standardized.path
-
+        let resolvedPath = resolveProjectPath(path)
         let persistence = GraphPersistence(projectPath: resolvedPath)
         guard FileManager.default.fileExists(atPath: persistence.databasePath) else {
             print("No index found. Run `apus index \(path)` first.")

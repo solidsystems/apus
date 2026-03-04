@@ -43,11 +43,7 @@ struct ExploreCommand: AsyncParsableCommand {
     var noBrowser: Bool = false
 
     func run() async throws {
-        let resolvedPath = URL(
-            fileURLWithPath: path,
-            relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        ).standardized.path
-
+        let resolvedPath = resolveProjectPath(path)
         let persistence = GraphPersistence(projectPath: resolvedPath)
         guard FileManager.default.fileExists(atPath: persistence.databasePath) else {
             print("No index found. Run `apus index \(path)` first.")

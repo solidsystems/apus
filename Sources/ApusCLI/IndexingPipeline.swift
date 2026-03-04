@@ -132,16 +132,7 @@ struct IndexingPipeline {
     // MARK: - Private
 
     private func resolvePath(_ path: String) -> String {
-        let url: URL
-        if path.hasPrefix("/") {
-            url = URL(fileURLWithPath: path)
-        } else {
-            url = URL(
-                fileURLWithPath: path,
-                relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            )
-        }
-        return url.standardized.path
+        resolveProjectPath(path)
     }
 
     /// Collects .swift source files from targets. Falls back to filesystem scanning

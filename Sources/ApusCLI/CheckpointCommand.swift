@@ -113,11 +113,7 @@ struct SaveCheckpoint: AsyncParsableCommand {
 // MARK: - Shared helpers
 
 private func openStorage(path: String) throws -> (SQLiteStorage, String) {
-    let resolvedPath = URL(
-        fileURLWithPath: path,
-        relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-    ).standardized.path
-
+    let resolvedPath = resolveProjectPath(path)
     let persistence = GraphPersistence(projectPath: resolvedPath)
     guard FileManager.default.fileExists(atPath: persistence.databasePath) else {
         print("No index found. Run `apus index \(path)` first.")
