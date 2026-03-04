@@ -21,6 +21,15 @@ public enum NodeKind: String, Codable, Sendable, CaseIterable {
     case file
     case module
 
+    /// Initialize from a display name (e.g. "class", "struct", "enum").
+    public init?(displayName: String) {
+        if let match = NodeKind.allCases.first(where: { $0.displayName == displayName }) {
+            self = match
+        } else {
+            return nil
+        }
+    }
+
     public var displayName: String {
         switch self {
         case .class_: "class"

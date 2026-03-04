@@ -1,4 +1,8 @@
 import ArgumentParser
+import Foundation
+import ApusCore
+import ApusMCP
+import MCP
 
 @main
 struct Apus: AsyncParsableCommand {
@@ -58,15 +62,64 @@ struct QueryCommand: AsyncParsableCommand {
     @Argument(help: "Search query")
     var searchQuery: String
 
-    @Option(name: .long, help: "Filter by node kind")
+    @Option(name: .long, help: "Path to the project root (default: current directory)")
+    var path: String = "."
+
+    @Option(name: .long, help: "Filter by node kind (class, struct, enum, protocol, function, method, property, etc.)")
     var kind: String?
 
     @Flag(name: .long, help: "Output as JSON")
     var json: Bool = false
 
     func run() async throws {
-        print("Querying: \(searchQuery)")
-        print("Not yet implemented. Coming in Phase 7.")
+        let resolvedPath = URL(
+            fileURLWithPath: path,
+            relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        ).standardized.path
+
+        let persistence = GraphPersistence(projectPath: resolvedPath)
+        guard FileManager.default.fileExists(atPath: persistence.databasePath) else {
+            print("No index found. Run `apus index \(path)` first.")
+            throw ExitCode.failure
+        }
+
+        let graph = try persistence.openGraph()
+        try await graph.loadFromDisk()
+
+        var results = try await graph.search(query: searchQuery)
+
+        if let kind {
+            let nodeKind = NodeKind(rawValue: kind) ?? NodeKind(displayName: kind)
+            if let nodeKind {
+                results = results.filter { $0.kind == nodeKind }
+            } else {
+                print("Unknown kind: \(kind)")
+                print("Valid kinds: \(NodeKind.allCases.map(\.displayName).joined(separator: ", "))")
+                throw ExitCode.failure
+            }
+        }
+
+        if results.isEmpty {
+            print("No results found for \"\(searchQuery)\"")
+            return
+        }
+
+        if json {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(results)
+            print(String(data: data, encoding: .utf8)!)
+        } else {
+            print("Found \(results.count) results:\n")
+            for node in results {
+                print("  \(node.kind.displayName) \(node.qualifiedName)")
+                if let file = node.filePath, let line = node.line {
+                    print("    \(file):\(line)")
+                }
+                print("    id: \(node.id)")
+                print()
+            }
+        }
     }
 }
 
@@ -76,8 +129,34 @@ struct ServeCommand: AsyncParsableCommand {
         abstract: "Start MCP server on stdio"
     )
 
+    @Option(name: .long, help: "Path to the project root (default: current directory)")
+    var path: String = "."
+
     func run() async throws {
-        print("Starting MCP server...")
-        print("Not yet implemented. Coming in Phase 7.")
+        let resolvedPath = URL(
+            fileURLWithPath: path,
+            relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        ).standardized.path
+
+        let persistence = GraphPersistence(projectPath: resolvedPath)
+        guard FileManager.default.fileExists(atPath: persistence.databasePath) else {
+            // Write to stderr so it doesn't interfere with MCP stdio protocol
+            FileHandle.standardError.write(Data("No index found. Run `apus index \(path)` first.\n".utf8))
+            throw ExitCode.failure
+        }
+
+        let graph = try persistence.openGraph()
+        try await graph.loadFromDisk()
+
+        let projectName = try GraphPersistence.getMetadata(
+            key: "projectName",
+            from: persistence.openStorage()
+        ) ?? "Unknown"
+
+        FileHandle.standardError.write(Data("Apus MCP server starting for \(projectName)...\n".utf8))
+
+        let server = ApusMCPServer(graph: graph, projectName: projectName)
+        let transport = StdioTransport()
+        try await server.start(transport: transport)
     }
 }
