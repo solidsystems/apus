@@ -29,8 +29,23 @@ struct IndexCommand: AsyncParsableCommand {
     var verbose: Bool = false
 
     func run() async throws {
-        print("Indexing \(path)...")
-        print("Not yet implemented. Coming in Phase 6.")
+        let pipeline = IndexingPipeline()
+        let options = IndexingPipeline.Options(
+            path: path,
+            force: force,
+            includeTests: includeTests,
+            verbose: verbose
+        )
+
+        let result = try await pipeline.run(options: options)
+
+        print("Indexed \(result.projectName)")
+        print("  Targets: \(result.targetCount)")
+        print("  Index Store: \(result.indexStoreNodes) nodes, \(result.indexStoreEdges) edges")
+        print("  SwiftSyntax: \(result.syntaxFiles) files parsed")
+        print("  Total: \(result.totalNodes) nodes, \(result.totalEdges) edges")
+        print("  Database: \(result.databasePath)")
+        print("  Duration: \(String(format: "%.2f", result.duration))s")
     }
 }
 

@@ -69,6 +69,21 @@ public struct SQLiteStorage: Sendable {
             try db.create(index: "idx_edges_target", on: "edges", columns: ["target_id"])
         }
 
+        // v2: Remove FK constraints from edges — the graph supports dangling references
+        // to external symbols (e.g., conformance to Foundation protocols).
+        migrator.registerMigration("v2") { db in
+            try db.drop(table: "edges")
+            try db.create(table: "edges") { t in
+                t.column("source_id", .text).notNull()
+                t.column("target_id", .text).notNull()
+                t.column("kind", .text).notNull()
+                t.column("metadata", .text).notNull().defaults(to: "{}")
+                t.primaryKey(["source_id", "target_id", "kind"])
+            }
+            try db.create(index: "idx_edges_source", on: "edges", columns: ["source_id"])
+            try db.create(index: "idx_edges_target", on: "edges", columns: ["target_id"])
+        }
+
         return migrator
     }
 }

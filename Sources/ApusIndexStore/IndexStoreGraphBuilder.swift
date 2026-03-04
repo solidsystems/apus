@@ -14,6 +14,13 @@ public struct IndexStoreGraphBuilder: Sendable {
         public let edges: [GraphEdge]
         public let unitCount: Int
         public let recordCount: Int
+
+        public init(nodes: [GraphNode], edges: [GraphEdge], unitCount: Int, recordCount: Int) {
+            self.nodes = nodes
+            self.edges = edges
+            self.unitCount = unitCount
+            self.recordCount = recordCount
+        }
     }
 
     public init() {}
