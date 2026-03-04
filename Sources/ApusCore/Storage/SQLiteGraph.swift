@@ -2,9 +2,11 @@ import Foundation
 import GRDB
 
 /// GRDB Record type for nodes table.
-struct NodeRecord: Codable, Sendable, FetchableRecord, PersistableRecord {
+struct NodeRecord: Codable, Sendable, FetchableRecord, MutablePersistableRecord {
     static let databaseTableName = "nodes"
+    static let persistenceConflictPolicy = PersistenceConflictPolicy(insert: .replace)
 
+    var rowid: Int64?
     var id: String
     var kind: String
     var name: String
@@ -17,7 +19,7 @@ struct NodeRecord: Codable, Sendable, FetchableRecord, PersistableRecord {
     var targetName: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, name
+        case rowid, id, kind, name
         case qualifiedName = "qualified_name"
         case filePath = "file_path"
         case line
@@ -28,6 +30,7 @@ struct NodeRecord: Codable, Sendable, FetchableRecord, PersistableRecord {
     }
 
     init(_ node: GraphNode) {
+        self.rowid = nil
         self.id = node.id
         self.kind = node.kind.rawValue
         self.name = node.name
@@ -111,7 +114,8 @@ public final class SQLiteGraph: KnowledgeGraph, Sendable {
 
     public func addNode(_ node: GraphNode) async throws {
         try await storage.dbPool.write { db in
-            try NodeRecord(node).save(db)
+            var record = NodeRecord(node)
+            try record.insert(db)
         }
     }
 
@@ -123,7 +127,7 @@ public final class SQLiteGraph: KnowledgeGraph, Sendable {
 
     public func node(id: String) async throws -> GraphNode? {
         try await storage.dbPool.read { db in
-            try NodeRecord.fetchOne(db, key: id)?.toGraphNode()
+            try NodeRecord.filter(Column("id") == id).fetchOne(db)?.toGraphNode()
         }
     }
 
@@ -155,7 +159,7 @@ public final class SQLiteGraph: KnowledgeGraph, Sendable {
     }
 
     public func search(query: String) async throws -> [GraphNode] {
-        try await storage.dbPool.read { db in
+        try await storage.dbPool.write { db in
             let pattern = FTS5Pattern(matchingAnyTokenIn: query)
             guard let pattern else { return [] }
             let sql = """
@@ -191,7 +195,7 @@ public final class SQLiteGraph: KnowledgeGraph, Sendable {
 
                 for edgeRec in outgoing {
                     guard !visited.contains(edgeRec.targetId) else { continue }
-                    guard let nodeRec = try NodeRecord.fetchOne(db, key: edgeRec.targetId) else { continue }
+                    guard let nodeRec = try NodeRecord.filter(Column("id") == edgeRec.targetId).fetchOne(db) else { continue }
                     visited.insert(edgeRec.targetId)
                     results.append(NeighborResult(
                         node: nodeRec.toGraphNode(),
@@ -203,7 +207,7 @@ public final class SQLiteGraph: KnowledgeGraph, Sendable {
 
                 for edgeRec in incoming {
                     guard !visited.contains(edgeRec.sourceId) else { continue }
-                    guard let nodeRec = try NodeRecord.fetchOne(db, key: edgeRec.sourceId) else { continue }
+                    guard let nodeRec = try NodeRecord.filter(Column("id") == edgeRec.sourceId).fetchOne(db) else { continue }
                     visited.insert(edgeRec.sourceId)
                     results.append(NeighborResult(
                         node: nodeRec.toGraphNode(),
@@ -233,7 +237,8 @@ public final class SQLiteGraph: KnowledgeGraph, Sendable {
     public func addNodes(_ nodes: [GraphNode]) async throws {
         try await storage.dbPool.write { db in
             for node in nodes {
-                try NodeRecord(node).save(db)
+                var record = NodeRecord(node)
+            try record.insert(db)
             }
         }
     }

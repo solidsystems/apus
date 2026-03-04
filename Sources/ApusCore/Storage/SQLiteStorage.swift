@@ -10,9 +10,10 @@ public struct SQLiteStorage: Sendable {
         try migrator.migrate(dbPool)
     }
 
-    /// In-memory database for testing.
+    /// Temporary on-disk database for testing. Deleted when process exits.
     public init() throws {
-        dbPool = try DatabasePool(path: ":memory:")
+        let tmpPath = NSTemporaryDirectory() + "apus-test-\(UUID().uuidString).sqlite"
+        dbPool = try DatabasePool(path: tmpPath)
         try migrator.migrate(dbPool)
     }
 
@@ -21,7 +22,8 @@ public struct SQLiteStorage: Sendable {
 
         migrator.registerMigration("v1") { db in
             try db.create(table: "nodes") { t in
-                t.primaryKey("id", .text)
+                t.autoIncrementedPrimaryKey("rowid")
+                t.column("id", .text).notNull().unique()
                 t.column("kind", .text).notNull()
                 t.column("name", .text).notNull()
                 t.column("qualified_name", .text).notNull()
