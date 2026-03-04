@@ -83,6 +83,21 @@ apus query "parse" --kind function
 apus query "Model" --json
 ```
 
+### Analyze a codebase
+
+```bash
+# Full analysis report to stdout
+apus analyze .
+
+# Select specific sections
+apus analyze . --sections overview,hotspots
+
+# Write to a file
+apus analyze . --output report.md
+```
+
+Available sections: `overview`, `architecture`, `typesystem`, `api`, `dependencies`, `hotspots`, `patterns`.
+
 ### Use as an MCP server with Claude Code
 
 Add Apus to your Claude Code MCP configuration (`.claude/settings.json` or project-level):
@@ -111,10 +126,11 @@ apus serve --path /path/to/your/project
 ## Architecture
 
 ```
-ApusCLI ─── apus index / query / serve
+ApusCLI ─── apus index / query / analyze / serve
   ├── ApusProject ──── SPM, Xcode, XcodeGen, Workspace parsers
   ├── ApusIndexStore ─ C API wrappers for Xcode's libIndexStore.dylib
   ├── ApusSyntax ───── SwiftSyntax-based source file parsing
+  ├── ApusAnalysis ─── Codebase analysis and report generation
   ├── ApusMCP ──────── MCP server with tool handlers
   └── ApusCore ─────── GraphNode, GraphEdge, KnowledgeGraph protocol,
                         SQLite persistence (GRDB + FTS5), HybridGraph

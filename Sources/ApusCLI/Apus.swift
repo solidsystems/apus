@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import ApusCore
 import ApusMCP
+import ApusAnalysis
 import MCP
 
 @main
@@ -10,7 +11,7 @@ struct Apus: AsyncParsableCommand {
         commandName: "apus",
         abstract: "Swift-native code intelligence powered by Index Store and SwiftSyntax",
         version: "0.1.0",
-        subcommands: [IndexCommand.self, QueryCommand.self, ServeCommand.self]
+        subcommands: [IndexCommand.self, QueryCommand.self, ServeCommand.self, AnalyzeCommand.self]
     )
 }
 
@@ -158,5 +159,65 @@ struct ServeCommand: AsyncParsableCommand {
         let server = ApusMCPServer(graph: graph, projectName: projectName)
         let transport = StdioTransport()
         try await server.start(transport: transport)
+    }
+}
+
+struct AnalyzeCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "analyze",
+        abstract: "Generate a comprehensive codebase analysis report"
+    )
+
+    @Argument(help: "Path to the project root")
+    var path: String = "."
+
+    @Option(name: .long, help: "Write report to file instead of stdout")
+    var output: String?
+
+    @Option(name: .long, help: "Comma-separated sections to include (overview,architecture,typesystem,api,dependencies,hotspots,patterns)")
+    var sections: String?
+
+    func run() async throws {
+        let resolvedPath = URL(
+            fileURLWithPath: path,
+            relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        ).standardized.path
+
+        let persistence = GraphPersistence(projectPath: resolvedPath)
+        guard FileManager.default.fileExists(atPath: persistence.databasePath) else {
+            print("No index found. Run `apus index \(path)` first.")
+            throw ExitCode.failure
+        }
+
+        let graph = try persistence.openGraph()
+        try await graph.loadFromDisk()
+
+        let projectName = try GraphPersistence.getMetadata(
+            key: "projectName",
+            from: persistence.openStorage()
+        ) ?? URL(fileURLWithPath: resolvedPath).lastPathComponent
+
+        // Parse section filter
+        var requestedSections: [AnalysisSection]?
+        if let sections {
+            requestedSections = sections.split(separator: ",").compactMap { name in
+                AnalysisSection(rawValue: String(name).trimmingCharacters(in: .whitespaces))
+            }
+            if requestedSections?.isEmpty == true {
+                print("No valid sections specified. Available: \(AnalysisSection.allCases.map(\.rawValue).joined(separator: ", "))")
+                throw ExitCode.failure
+            }
+        }
+
+        let analyzer = try await CodebaseAnalyzer(graph: graph, projectName: projectName)
+        let report = analyzer.analyze(sections: requestedSections)
+        let markdown = report.renderMarkdown()
+
+        if let output {
+            try markdown.write(toFile: output, atomically: true, encoding: .utf8)
+            print("Report written to \(output)")
+        } else {
+            print(markdown)
+        }
     }
 }
