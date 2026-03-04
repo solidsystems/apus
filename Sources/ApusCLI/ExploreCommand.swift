@@ -18,6 +18,9 @@ struct ExploreCommand: AsyncParsableCommand {
     @Option(name: .long, help: "HTTP port (default: 8090)")
     var port: Int = 8090
 
+    @Option(name: .long, help: "Maximum nodes to display (default: 500, 0 for unlimited)")
+    var maxNodes: Int = 500
+
     @Flag(name: .long, help: "Don't auto-open browser")
     var noBrowser: Bool = false
 
@@ -43,7 +46,14 @@ struct ExploreCommand: AsyncParsableCommand {
 
         let allNodes = try await graph.allNodes()
         let allEdges = try await graph.allEdges()
-        let snapshot = GraphSnapshot(nodes: allNodes, edges: allEdges)
+        var snapshot = GraphSnapshot(nodes: allNodes, edges: allEdges)
+        let totalNodes = snapshot.allNodes.count
+        let totalEdges = snapshot.allEdges.count
+
+        // Simplify for browser rendering
+        if maxNodes > 0 {
+            snapshot = GraphFilter.simplify(snapshot, maxNodes: maxNodes)
+        }
 
         // Generate HTML
         let template = WebExplorerTemplate()
@@ -56,7 +66,12 @@ struct ExploreCommand: AsyncParsableCommand {
         let jsonData = Data(jsonResult.content.utf8)
 
         print("Apus Graph Explorer for \(projectName)")
-        print("  \(snapshot.allNodes.count) nodes, \(snapshot.allEdges.count) edges")
+        if snapshot.allNodes.count < totalNodes {
+            print("  \(snapshot.allNodes.count) nodes, \(snapshot.allEdges.count) edges (simplified from \(totalNodes) nodes, \(totalEdges) edges)")
+            print("  Use --max-nodes 0 for the full graph, or --max-nodes N to adjust")
+        } else {
+            print("  \(snapshot.allNodes.count) nodes, \(snapshot.allEdges.count) edges")
+        }
         print("  http://localhost:\(port)")
         print("  Press Ctrl+C to stop")
 
