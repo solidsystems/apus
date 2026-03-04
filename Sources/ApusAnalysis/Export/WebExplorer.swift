@@ -20,6 +20,8 @@ public struct WebExplorerTemplate: Sendable {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>\(escapeHTML(projectName)) — Apus Graph Explorer</title>
             <script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+            <script src="https://unpkg.com/layout-base@2.0.1/layout-base.js"></script>
+            <script src="https://unpkg.com/cose-base@2.2.0/cose-base.js"></script>
             <script src="https://unpkg.com/cytoscape-cose-bilkent@4.1.0/cytoscape-cose-bilkent.js"></script>
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
