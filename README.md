@@ -126,18 +126,24 @@ The web explorer serves a self-contained Cytoscape.js graph with search, filteri
 
 ### Track changes with checkpoints
 
+Checkpoints capture a metrics snapshot of your graph — total nodes, edges, files, public API surface, breakdowns by symbol kind, target, and edge type. Use them to track how your codebase evolves across refactors, feature work, or dependency changes.
+
 ```bash
-# Compare current state vs last checkpoint
-apus checkpoint .
+# Compare current state vs last checkpoint (default subcommand)
+apus checkpoint diff .
 
 # Save a named checkpoint
 apus checkpoint save . --name "before-refactor"
 
 # List all checkpoints
 apus checkpoint list .
+
+# JSON output for scripting
+apus checkpoint diff . --json
+apus checkpoint list . --json
 ```
 
-Checkpoints are also saved automatically after every `apus index` run, with a summary of what changed since the previous index.
+A checkpoint is also saved automatically after every `apus index` run, with a one-line summary of what changed since the previous index.
 
 ### Update
 
