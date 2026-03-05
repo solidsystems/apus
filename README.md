@@ -145,6 +145,30 @@ apus checkpoint list . --json
 
 A checkpoint is also saved automatically after every `apus index` run, with a one-line summary of what changed since the previous index.
 
+### Generate an implementation plan
+
+```bash
+# Full plan (context + improvement tasks) to stdout
+apus plan .
+
+# JSON output for programmatic use
+apus plan . --json
+
+# Write to a file
+apus plan . --output plan.md
+
+# Only codebase context (no tasks)
+apus plan . --context-only
+
+# Only improvement tasks (no context)
+apus plan . --tasks-only
+
+# Limit the number of tasks
+apus plan . --max-tasks 10
+```
+
+The plan combines codebase context (modules, dependencies, key types, protocol relationships) with prioritized improvement tasks detected from graph patterns — high fan-out functions, oversized files, tightly coupled modules, orphaned types, and more.
+
 ### Update
 
 ```bash
@@ -185,11 +209,11 @@ apus serve --path /path/to/your/project
 ## Architecture
 
 ```
-ApusCLI ─── apus index / query / analyze / serve / export / explore / checkpoint / update
+ApusCLI ─── apus index / query / analyze / plan / serve / export / explore / checkpoint / update
   ├── ApusProject ──── SPM, Xcode, XcodeGen, Workspace parsers
   ├── ApusIndexStore ─ C API wrappers for Xcode's libIndexStore.dylib
   ├── ApusSyntax ───── SwiftSyntax-based source file parsing
-  ├── ApusAnalysis ─── Codebase analysis, graph export (DOT/Mermaid/JSON), web explorer
+  ├── ApusAnalysis ─── Codebase analysis, plan generation, graph export (DOT/Mermaid/JSON), web explorer
   ├── ApusMCP ──────── MCP server with tool handlers
   └── ApusCore ─────── GraphNode, GraphEdge, KnowledgeGraph protocol,
                         SQLite persistence (GRDB + FTS5), HybridGraph

@@ -11,7 +11,7 @@ struct Apus: AsyncParsableCommand {
         commandName: "apus",
         abstract: "Swift-native code intelligence powered by Index Store and SwiftSyntax",
         version: "0.1.0",
-        subcommands: [IndexCommand.self, QueryCommand.self, ServeCommand.self, AnalyzeCommand.self, ExportCommand.self, ExploreCommand.self, UpdateCommand.self, CheckpointCommand.self]
+        subcommands: [IndexCommand.self, QueryCommand.self, ServeCommand.self, AnalyzeCommand.self, ExportCommand.self, ExploreCommand.self, UpdateCommand.self, CheckpointCommand.self, PlanCommand.self]
     )
 }
 
